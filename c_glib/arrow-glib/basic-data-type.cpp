@@ -27,6 +27,7 @@
 
 #include <arrow/c/bridge.h>
 #include <arrow/extension/fixed_shape_tensor.h>
+#include <arrow/extension/range.h>
 #include <arrow/extension/uuid.h>
 
 G_BEGIN_DECLS
@@ -2591,6 +2592,121 @@ garrow_uuid_data_type_new(GError **error)
     return NULL;
   }
 }
+
+static arrow::extension::RangeClosed
+garrow_range_closed_to_raw(GArrowRangeClosed closed)
+{
+  switch (closed) {
+  case GARROW_RANGE_CLOSED_LEFT:
+    return arrow::extension::RangeClosed::Left;
+  case GARROW_RANGE_CLOSED_RIGHT:
+    return arrow::extension::RangeClosed::Right;
+  case GARROW_RANGE_CLOSED_BOTH:
+    return arrow::extension::RangeClosed::Both;
+  case GARROW_RANGE_CLOSED_NEITHER:
+    return arrow::extension::RangeClosed::Neither;
+  default:
+    return arrow::extension::RangeClosed::Left;
+  }
+}
+
+static GArrowRangeClosed
+garrow_range_closed_from_raw(arrow::extension::RangeClosed closed)
+{
+  switch (closed) {
+  case arrow::extension::RangeClosed::Left:
+    return GARROW_RANGE_CLOSED_LEFT;
+  case arrow::extension::RangeClosed::Right:
+    return GARROW_RANGE_CLOSED_RIGHT;
+  case arrow::extension::RangeClosed::Both:
+    return GARROW_RANGE_CLOSED_BOTH;
+  case arrow::extension::RangeClosed::Neither:
+    return GARROW_RANGE_CLOSED_NEITHER;
+  default:
+    return GARROW_RANGE_CLOSED_LEFT;
+  }
+}
+
+G_DEFINE_TYPE(GArrowRangeDataType,
+              garrow_range_data_type,
+              GARROW_TYPE_EXTENSION_DATA_TYPE)
+
+static void
+garrow_range_data_type_init(GArrowRangeDataType *object)
+{
+}
+
+static void
+garrow_range_data_type_class_init(GArrowRangeDataTypeClass *klass)
+{
+}
+
+/**
+ * garrow_range_data_type_new:
+ * @value_type: The orderable #GArrowDataType of the lower and upper bounds.
+ * @closed: Which bound(s) of the interval are inclusive.
+ * @allow_unbounded: Whether each side may be unbounded (infinite); when %TRUE
+ *   the lower/upper fields are nullable, when %FALSE they are non-nullable and
+ *   the range is always finite.
+ * @error: (nullable): Return location for a #GError or %NULL.
+ *
+ * Returns: (nullable):
+ *   The newly created range data type on success, %NULL on error.
+ *
+ * Since: 25.0.0
+ */
+GArrowRangeDataType *
+garrow_range_data_type_new(GArrowDataType *value_type,
+                           GArrowRangeClosed closed,
+                           gboolean allow_unbounded,
+                           GError **error)
+{
+  auto arrow_value_type = garrow_data_type_get_raw(value_type);
+  auto arrow_closed = garrow_range_closed_to_raw(closed);
+  auto arrow_data_type_result =
+    arrow::extension::RangeType::Make(arrow_value_type, arrow_closed, allow_unbounded);
+  if (garrow::check(error, arrow_data_type_result, "[range-data-type][new]")) {
+    auto arrow_data_type = *arrow_data_type_result;
+    return GARROW_RANGE_DATA_TYPE(
+      g_object_new(GARROW_TYPE_RANGE_DATA_TYPE, "data-type", &arrow_data_type, NULL));
+  } else {
+    return NULL;
+  }
+}
+
+/**
+ * garrow_range_data_type_get_value_type:
+ * @data_type: A #GArrowRangeDataType.
+ *
+ * Returns: (transfer full): The orderable #GArrowDataType of the lower
+ *   and upper bounds.
+ *
+ * Since: 25.0.0
+ */
+GArrowDataType *
+garrow_range_data_type_get_value_type(GArrowRangeDataType *data_type)
+{
+  auto arrow_data_type = std::static_pointer_cast<arrow::extension::RangeType>(
+    garrow_data_type_get_raw(GARROW_DATA_TYPE(data_type)));
+  auto arrow_value_type = arrow_data_type->value_type();
+  return garrow_data_type_new_raw(&arrow_value_type);
+}
+
+/**
+ * garrow_range_data_type_get_closed:
+ * @data_type: A #GArrowRangeDataType.
+ *
+ * Returns: Which bound(s) of the interval are inclusive.
+ *
+ * Since: 25.0.0
+ */
+GArrowRangeClosed
+garrow_range_data_type_get_closed(GArrowRangeDataType *data_type)
+{
+  auto arrow_data_type = std::static_pointer_cast<arrow::extension::RangeType>(
+    garrow_data_type_get_raw(GARROW_DATA_TYPE(data_type)));
+  return garrow_range_closed_from_raw(arrow_data_type->closed());
+}
 G_END_DECLS
 
 GArrowDataType *
@@ -2746,6 +2862,8 @@ garrow_data_type_new_raw(std::shared_ptr<arrow::DataType> *arrow_data_type)
         type = GARROW_TYPE_FIXED_SHAPE_TENSOR_DATA_TYPE;
       } else if (name == "arrow.uuid") {
         type = GARROW_TYPE_UUID_DATA_TYPE;
+      } else if (name == "arrow.range") {
+        type = GARROW_TYPE_RANGE_DATA_TYPE;
       } else {
         auto g_extension_data_type =
           std::dynamic_pointer_cast<garrow::GExtensionType>(*arrow_data_type);

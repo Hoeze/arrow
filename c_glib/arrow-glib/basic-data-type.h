@@ -894,4 +894,52 @@ struct _GArrowUUIDDataTypeClass
 GARROW_AVAILABLE_IN_21_0
 GArrowUUIDDataType *
 garrow_uuid_data_type_new(GError **error);
+
+/**
+ * GArrowRangeClosed:
+ * @GARROW_RANGE_CLOSED_LEFT: Lower bound is inclusive, upper bound is
+ *   exclusive: [lower, upper).
+ * @GARROW_RANGE_CLOSED_RIGHT: Lower bound is exclusive, upper bound is
+ *   inclusive: (lower, upper].
+ * @GARROW_RANGE_CLOSED_BOTH: Both bounds are inclusive: [lower, upper].
+ * @GARROW_RANGE_CLOSED_NEITHER: Both bounds are exclusive: (lower, upper).
+ *
+ * They are corresponding to `arrow::extension::RangeClosed` values.
+ *
+ * Since: 25.0.0
+ */
+typedef enum {
+  GARROW_RANGE_CLOSED_LEFT,
+  GARROW_RANGE_CLOSED_RIGHT,
+  GARROW_RANGE_CLOSED_BOTH,
+  GARROW_RANGE_CLOSED_NEITHER,
+} GArrowRangeClosed;
+
+#define GARROW_TYPE_RANGE_DATA_TYPE (garrow_range_data_type_get_type())
+GARROW_AVAILABLE_IN_25_0
+G_DECLARE_DERIVABLE_TYPE(GArrowRangeDataType,
+                         garrow_range_data_type,
+                         GARROW,
+                         RANGE_DATA_TYPE,
+                         GArrowExtensionDataType)
+struct _GArrowRangeDataTypeClass
+{
+  GArrowExtensionDataTypeClass parent_class;
+};
+
+GARROW_AVAILABLE_IN_25_0
+GArrowRangeDataType *
+garrow_range_data_type_new(GArrowDataType *value_type,
+                           GArrowRangeClosed closed,
+                           gboolean allow_unbounded,
+                           GError **error);
+
+GARROW_AVAILABLE_IN_25_0
+GArrowDataType *
+garrow_range_data_type_get_value_type(GArrowRangeDataType *data_type);
+
+GARROW_AVAILABLE_IN_25_0
+GArrowRangeClosed
+garrow_range_data_type_get_closed(GArrowRangeDataType *data_type);
+
 G_END_DECLS

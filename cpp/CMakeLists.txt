@@ -96,7 +96,7 @@ if(POLICY CMP0170)
   cmake_policy(SET CMP0170 NEW)
 endif()
 
-set(ARROW_VERSION "25.0.0-SNAPSHOT")
+set(ARROW_VERSION "26.0.0-SNAPSHOT")
 
 string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" ARROW_BASE_VERSION "${ARROW_VERSION}")
 
@@ -263,6 +263,9 @@ if(ARROW_USE_CCACHE
    AND NOT CMAKE_C_COMPILER_LAUNCHER
    AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
 
+  # XXX This does not detect if ccache is enabled externally, for example
+  # by adding `/usr/lib/ccache` to PATH in which case `cc` resolves to
+  # `/usr/lib/ccache/cc`. Such double-wrapping of ccache is suboptimal.
   find_program(CCACHE_FOUND ccache)
 
   if(CCACHE_FOUND)
@@ -550,9 +553,6 @@ message(STATUS "CMAKE_CXX_FLAGS_${UPPERCASE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS_${UPP
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/src)
 include_directories(src)
-
-# Compiled flatbuffers files
-include_directories(src/generated)
 
 #
 # Visibility

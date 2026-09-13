@@ -203,6 +203,14 @@ cdef class Bool8Type(BaseExtensionType):
     cdef:
         const CBool8Type* bool8_ext_type
 
+cdef class FixedClosednessRangeType(BaseExtensionType):
+    cdef:
+        const CFixedClosednessRangeType* range_ext_type
+
+cdef class VariableClosednessRangeType(BaseExtensionType):
+    cdef:
+        const CVariableClosednessRangeType* range_ext_type
+
 cdef class OpaqueType(BaseExtensionType):
     cdef:
         const COpaqueType* opaque_ext_type
@@ -288,8 +296,15 @@ cdef class Array(_PandasConvertible):
         # To allow Table to propagate metadata to pandas.Series
         object _name
 
+    cdef:
+        # Lazily wrapped child array(s) reused by _getitem_py (see GH-50326).
+        # Appended after the pre-existing attributes to keep their offsets
+        # stable for extensions compiled against an older pyarrow.
+        object _children_cache
+
     cdef void init(self, const shared_ptr[CArray]& sp_array) except *
     cdef getitem(self, int64_t i)
+    cdef object _getitem_py(self, int64_t i)
     cdef int64_t length(self)
     cdef void _assert_cpu(self) except *
 

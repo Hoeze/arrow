@@ -329,11 +329,17 @@ takes precedence over ccache if a storage backend is configured" ON)
                 ARROW_FLIGHT)
 
   define_option(ARROW_FLIGHT_SQL_ODBC
-                "Build the Arrow Flight SQL ODBC extension"
+                "Build the Arrow Flight SQL ODBC driver"
                 OFF
                 DEPENDS
                 ARROW_FLIGHT_SQL
                 ARROW_COMPUTE)
+
+  define_option(ARROW_FLIGHT_SQL_ODBC_INSTALLER
+                "Build the Arrow Flight SQL ODBC installer"
+                OFF
+                DEPENDS
+                ARROW_FLIGHT_SQL_ODBC)
 
   define_option(ARROW_GANDIVA
                 "Build the Gandiva libraries"
@@ -582,11 +588,12 @@ takes precedence over ccache if a storage backend is configured" ON)
   set_option_category("Parquet")
 
   define_option(PARQUET_BUILD_EXECUTABLES
-                "Build the Parquet executable CLI tools. Requires static libraries to be built."
-                OFF)
+                "Build the Parquet executable CLI tools."
+                OFF
+                DEPENDS
+                ARROW_FILESYSTEM)
 
-  define_option(PARQUET_BUILD_EXAMPLES
-                "Build the Parquet examples. Requires static libraries to be built." OFF)
+  define_option(PARQUET_BUILD_EXAMPLES "Build the Parquet examples." OFF)
 
   define_option(PARQUET_REQUIRE_ENCRYPTION
                 "Build support for encryption. Fail if OpenSSL is not found"

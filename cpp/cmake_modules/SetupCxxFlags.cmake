@@ -235,24 +235,6 @@ if(WIN32)
     #   * https://developercommunity.visualstudio.com/content/problem/1249671/stdc17-generates-warning-compiling-windowsh.html
     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} /wd5105")
 
-    if(ARROW_USE_CCACHE)
-      foreach(c_flag
-              CMAKE_CXX_FLAGS
-              CMAKE_CXX_FLAGS_RELEASE
-              CMAKE_CXX_FLAGS_DEBUG
-              CMAKE_CXX_FLAGS_MINSIZEREL
-              CMAKE_CXX_FLAGS_RELWITHDEBINFO
-              CMAKE_C_FLAGS
-              CMAKE_C_FLAGS_RELEASE
-              CMAKE_C_FLAGS_DEBUG
-              CMAKE_C_FLAGS_MINSIZEREL
-              CMAKE_C_FLAGS_RELWITHDEBINFO)
-        # ccache doesn't work with /Zi.
-        # See also: https://github.com/ccache/ccache/issues/1040
-        string(REPLACE "/Zi" "/Z7" ${c_flag} "${${c_flag}}")
-      endforeach()
-    endif()
-
     if(ARROW_USE_STATIC_CRT)
       foreach(c_flag
               CMAKE_CXX_FLAGS
@@ -758,14 +740,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
       "-sSIDE_MODULE=1 ${ARROW_EMSCRIPTEN_LINKER_FLAGS}")
   set(CMAKE_SHARED_LINKER_FLAGS "-sSIDE_MODULE=1 ${ARROW_EMSCRIPTEN_LINKER_FLAGS}")
   if(ARROW_TESTING)
+    # Deeply nested tests need a larger stack (1 MiB).
+    set(ARROW_EMSCRIPTEN_TEST_STACK_SIZE 1048576)
     # flags for building test executables for use in node
     if("${UPPERCASE_BUILD_TYPE}" STREQUAL "RELEASE")
       set(CMAKE_EXE_LINKER_FLAGS
-          "${ARROW_EMSCRIPTEN_LINKER_FLAGS} -sALLOW_MEMORY_GROWTH -lnodefs.js -lnoderawfs.js --pre-js ${BUILD_SUPPORT_DIR}/emscripten-test-init.js"
+          "${ARROW_EMSCRIPTEN_LINKER_FLAGS} -sSTACK_SIZE=${ARROW_EMSCRIPTEN_TEST_STACK_SIZE} -sALLOW_MEMORY_GROWTH -lnodefs.js -lnoderawfs.js --pre-js ${BUILD_SUPPORT_DIR}/emscripten-test-init.js"
       )
     else()
       set(CMAKE_EXE_LINKER_FLAGS
-          "${ARROW_EMSCRIPTEN_LINKER_FLAGS} -sERROR_ON_WASM_CHANGES_AFTER_LINK=1 -sALLOW_MEMORY_GROWTH -lnodefs.js -lnoderawfs.js --pre-js ${BUILD_SUPPORT_DIR}/emscripten-test-init.js"
+          "${ARROW_EMSCRIPTEN_LINKER_FLAGS} -sERROR_ON_WASM_CHANGES_AFTER_LINK=1 -sSTACK_SIZE=${ARROW_EMSCRIPTEN_TEST_STACK_SIZE} -sALLOW_MEMORY_GROWTH -lnodefs.js -lnoderawfs.js --pre-js ${BUILD_SUPPORT_DIR}/emscripten-test-init.js"
       )
     endif()
   else()

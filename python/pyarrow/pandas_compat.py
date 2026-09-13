@@ -93,7 +93,7 @@ def get_numpy_logical_type_map():
     global _numpy_logical_type_map
     if not _numpy_logical_type_map:
         _numpy_logical_type_map.update({
-            np.bool_: 'bool',
+            np.bool: 'bool',
             np.int8: 'int8',
             np.int16: 'int16',
             np.int32: 'int32',
@@ -277,7 +277,7 @@ def construct_metadata(columns_to_convert, df, column_names, index_levels,
     else:
         index_descriptors = index_column_metadata = column_indexes = []
 
-    attributes = df.attrs if hasattr(df, "attrs") else {}
+    attributes = df.attrs
 
     try:
         json.dumps(attributes)
@@ -378,7 +378,10 @@ def _index_level_name(index, i, column_names):
     if index.name is not None and index.name not in column_names:
         return _column_name_to_strings(index.name)
     else:
-        return f'__index_level_{i:d}__'
+        j = i
+        while f'__index_level_{j:d}__' in column_names:
+            j += 1
+        return f'__index_level_{j:d}__'
 
 
 def _get_columns_to_convert(df, schema, preserve_index, columns):
@@ -419,7 +422,9 @@ def _get_columns_to_convert(df, schema, preserve_index, columns):
     index_descriptors = []
     index_column_names = []
     for i, index_level in enumerate(index_levels):
-        name = _index_level_name(index_level, i, column_names)
+        name = _index_level_name(
+            index_level, i, column_names + index_column_names
+        )
         if (isinstance(index_level, _pandas_api.pd.RangeIndex) and
                 preserve_index is None):
             descr = _get_range_index_descriptor(index_level)
@@ -532,13 +537,12 @@ def _level_name(name):
 
 
 def _get_range_index_descriptor(level):
-    # public start/stop/step attributes added in pandas 0.25.0
     return {
         'kind': 'range',
         'name': _level_name(level.name),
-        'start': _pandas_api.get_rangeindex_attribute(level, 'start'),
-        'stop': _pandas_api.get_rangeindex_attribute(level, 'stop'),
-        'step': _pandas_api.get_rangeindex_attribute(level, 'step')
+        'start': level.start,
+        'stop': level.stop,
+        'step': level.step
     }
 
 
@@ -754,17 +758,9 @@ def _reconstruct_block(item, columns=None, extension_columns=None, return_block=
     elif 'timezone' in item:
         unit, _ = np.datetime_data(block_arr.dtype)
         dtype = make_datetimetz(unit, item['timezone'])
-        if _pandas_api.is_ge_v21():
-            arr = _pandas_api.pd.array(
-                block_arr.view("int64"), dtype=dtype, copy=False
-            )
-        else:
-            arr = block_arr
-            if return_block:
-                block = _int.make_block(block_arr, placement=placement,
-                                        klass=_int.DatetimeTZBlock,
-                                        dtype=dtype)
-                return block
+        arr = _pandas_api.pd.array(
+            block_arr.view("int64"), dtype=dtype, copy=False
+        )
     elif 'py_array' in item:
         # create ExtensionBlock
         arr = item['py_array']
@@ -785,8 +781,6 @@ def _reconstruct_block(item, columns=None, extension_columns=None, return_block=
 
 
 def make_datetimetz(unit, tz):
-    if _pandas_api.is_v1():
-        unit = 'ns'  # ARROW-3789: Coerce date/timestamp types to datetime64[ns]
     tz = pa.lib.string_to_tzinfo(tz, prefer_zoneinfo=_pandas_api.is_ge_v3())
     return _pandas_api.datetimetz_type(unit, tz=tz)
 
@@ -843,10 +837,7 @@ def table_to_dataframe(
         ]
         axes = [columns, index]
         mgr = BlockManager(blocks, axes)
-        if _pandas_api.is_ge_v21():
-            df = DataFrame._from_mgr(mgr, mgr.axes)
-        else:
-            df = DataFrame(mgr)
+        df = DataFrame._from_mgr(mgr, mgr.axes)
 
         df.attrs = attributes
 
@@ -880,10 +871,6 @@ def _get_extension_dtypes(table, columns_metadata, types_mapper, options, catego
     categories = categories or []
 
     ext_columns = {}
-
-    # older pandas version that does not yet support extension dtypes
-    if _pandas_api.extension_dtype is None:
-        return ext_columns
 
     # use the specified mapping of built-in arrow types to pandas dtypes
     if types_mapper:

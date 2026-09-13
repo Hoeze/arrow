@@ -181,7 +181,7 @@ def filters_to_expression(filters):
         elif op == 'not in':
             return ~field.isin(val)
         else:
-            raise ValueError(f'"{col}" is not a valid operator in predicates.')
+            raise ValueError(f'"{op}" is not a valid operator in predicates.')
 
     disjunction_members = []
 
@@ -258,6 +258,10 @@ class ParquetFile:
         If not None, override the maximum total size of containers allocated
         when decoding Thrift structures. The default limit should be
         sufficient for most Parquet files.
+    schema_depth_limit : int, default None
+        If not None, override the maximum nesting depth of the Parquet file schema.
+        This guards against recursion overflow on invalid schemas.
+        The default limit should be sufficient for most Parquet files.
     filesystem : FileSystem, default None
         If nothing passed, will be inferred based on path.
         Path will try to be found in the local on-disk filesystem otherwise
@@ -265,9 +269,9 @@ class ParquetFile:
     page_checksum_verification : bool, default False
         If True, verify the checksum for each page read from the file.
     arrow_extensions_enabled : bool, default True
-        If True, read Parquet logical types as Arrow extension types where possible,
-        (e.g., read JSON as the canonical `arrow.json` extension type or UUID as
-        the canonical `arrow.uuid` extension type).
+        If True, read Parquet logical types as Arrow extension types where
+        possible (e.g., read JSON as the canonical `arrow.json` extension type
+        or UUID as the canonical `arrow.uuid` extension type).
 
     Examples
     --------
@@ -316,7 +320,8 @@ class ParquetFile:
                  memory_map=False, buffer_size=0, pre_buffer=True,
                  coerce_int96_timestamp_unit=None,
                  decryption_properties=None, thrift_string_size_limit=None,
-                 thrift_container_size_limit=None, filesystem=None,
+                 thrift_container_size_limit=None, schema_depth_limit=None,
+                 filesystem=None,
                  page_checksum_verification=False, arrow_extensions_enabled=True):
 
         self._close_source = getattr(source, 'closed', True)
@@ -337,6 +342,7 @@ class ParquetFile:
             decryption_properties=decryption_properties,
             thrift_string_size_limit=thrift_string_size_limit,
             thrift_container_size_limit=thrift_container_size_limit,
+            schema_depth_limit=schema_depth_limit,
             page_checksum_verification=page_checksum_verification,
             arrow_extensions_enabled=arrow_extensions_enabled,
         )
@@ -1372,6 +1378,10 @@ thrift_container_size_limit : int, default None
     If not None, override the maximum total size of containers allocated
     when decoding Thrift structures. The default limit should be
     sufficient for most Parquet files.
+schema_depth_limit : int, default None
+    If not None, override the maximum nesting depth of the Parquet file schema.
+    This guards against recursion overflow on invalid schemas.
+    The default limit should be sufficient for most Parquet files.
 page_checksum_verification : bool, default False
     If True, verify the page checksum for each page read from the file.
 arrow_extensions_enabled : bool, default True
@@ -1390,7 +1400,7 @@ Examples
                  ignore_prefixes=None,
                  pre_buffer=True, coerce_int96_timestamp_unit=None,
                  decryption_properties=None, thrift_string_size_limit=None,
-                 thrift_container_size_limit=None,
+                 thrift_container_size_limit=None, schema_depth_limit=None,
                  page_checksum_verification=False,
                  arrow_extensions_enabled=True):
         import pyarrow.dataset as ds
@@ -1401,6 +1411,7 @@ Examples
             "coerce_int96_timestamp_unit": coerce_int96_timestamp_unit,
             "thrift_string_size_limit": thrift_string_size_limit,
             "thrift_container_size_limit": thrift_container_size_limit,
+            "schema_depth_limit": schema_depth_limit,
             "page_checksum_verification": page_checksum_verification,
             "arrow_extensions_enabled": arrow_extensions_enabled,
             "binary_type": binary_type,
@@ -1568,6 +1579,7 @@ Examples
         # column selection, to be able to restore those in the pandas DataFrame
         metadata = self.schema.metadata or {}
 
+        common_metadata = None
         if use_pandas_metadata:
             # if the dataset schema metadata itself doesn't have pandas
             # then try to get this from common file (for backwards compat)
@@ -1592,13 +1604,12 @@ Examples
             use_threads=use_threads
         )
 
-        # if use_pandas_metadata, restore the pandas metadata (which gets
-        # lost if doing a specific `columns` selection in to_table)
-        if use_pandas_metadata:
-            if metadata and b"pandas" in metadata:
-                new_metadata = table.schema.metadata or {}
-                new_metadata.update({b"pandas": metadata[b"pandas"]})
-                table = table.replace_schema_metadata(new_metadata)
+        # if the "pandas" metadata entry was retrieved from common_metadata,
+        # it will not live on the read table -> add it to the table metadata
+        if common_metadata and b"pandas" in metadata:
+            new_metadata = table.schema.metadata or {}
+            new_metadata.update({b"pandas": metadata[b"pandas"]})
+            table = table.replace_schema_metadata(new_metadata)
 
         return table
 
@@ -1788,6 +1799,10 @@ thrift_container_size_limit : int, default None
     If not None, override the maximum total size of containers allocated
     when decoding Thrift structures. The default limit should be
     sufficient for most Parquet files.
+schema_depth_limit : int, default None
+    If not None, override the maximum nesting depth of the Parquet file schema.
+    This guards against recursion overflow on invalid schemas.
+    The default limit should be sufficient for most Parquet files.
 page_checksum_verification : bool, default False
     If True, verify the checksum for each page read from the file.
 arrow_extensions_enabled : bool, default True
@@ -1888,7 +1903,7 @@ def read_table(source, *, columns=None, use_threads=True,
                ignore_prefixes=None, pre_buffer=True,
                coerce_int96_timestamp_unit=None,
                decryption_properties=None, thrift_string_size_limit=None,
-               thrift_container_size_limit=None,
+               thrift_container_size_limit=None, schema_depth_limit=None,
                page_checksum_verification=False,
                arrow_extensions_enabled=True):
 
@@ -1910,6 +1925,7 @@ def read_table(source, *, columns=None, use_threads=True,
             decryption_properties=decryption_properties,
             thrift_string_size_limit=thrift_string_size_limit,
             thrift_container_size_limit=thrift_container_size_limit,
+            schema_depth_limit=schema_depth_limit,
             page_checksum_verification=page_checksum_verification,
             arrow_extensions_enabled=arrow_extensions_enabled,
         )
@@ -1958,6 +1974,7 @@ def read_table(source, *, columns=None, use_threads=True,
             decryption_properties=decryption_properties,
             thrift_string_size_limit=thrift_string_size_limit,
             thrift_container_size_limit=thrift_container_size_limit,
+            schema_depth_limit=schema_depth_limit,
             page_checksum_verification=page_checksum_verification,
         )
 
@@ -2372,7 +2389,7 @@ def write_metadata(schema, where, metadata_collector=None, filesystem=None,
 
 
 def read_metadata(where, memory_map=False, decryption_properties=None,
-                  filesystem=None):
+                  filesystem=None, arrow_extensions_enabled=True):
     """
     Read FileMetaData from footer of a single Parquet file.
 
@@ -2387,6 +2404,10 @@ def read_metadata(where, memory_map=False, decryption_properties=None,
         If nothing passed, will be inferred based on path.
         Path will try to be found in the local on-disk filesystem otherwise
         it will be parsed as an URI to determine the filesystem.
+    arrow_extensions_enabled : bool, default True
+        If True, read Parquet logical types as Arrow extension types where
+        possible (e.g. UUID as the canonical `arrow.uuid` extension type).
+        If False, use the underlying storage types instead.
 
     Returns
     -------
@@ -2416,13 +2437,17 @@ def read_metadata(where, memory_map=False, decryption_properties=None,
         file_ctx = where = filesystem.open_input_file(where)
 
     with file_ctx:
-        file = ParquetFile(where, memory_map=memory_map,
-                           decryption_properties=decryption_properties)
+        file = ParquetFile(
+            where,
+            memory_map=memory_map,
+            decryption_properties=decryption_properties,
+            arrow_extensions_enabled=arrow_extensions_enabled,
+        )
         return file.metadata
 
 
 def read_schema(where, memory_map=False, decryption_properties=None,
-                filesystem=None):
+                filesystem=None, arrow_extensions_enabled=True):
     """
     Read effective Arrow schema from Parquet file metadata.
 
@@ -2437,6 +2462,9 @@ def read_schema(where, memory_map=False, decryption_properties=None,
         If nothing passed, will be inferred based on path.
         Path will try to be found in the local on-disk filesystem otherwise
         it will be parsed as an URI to determine the filesystem.
+    arrow_extensions_enabled : bool, default True
+        If True, read Parquet logical types as Arrow extension types where
+        possible (e.g., UUID as the canonical `arrow.uuid` extension type).
 
     Returns
     -------
@@ -2462,9 +2490,12 @@ def read_schema(where, memory_map=False, decryption_properties=None,
 
     with file_ctx:
         file = ParquetFile(
-            where, memory_map=memory_map,
-            decryption_properties=decryption_properties)
-        return file.schema.to_arrow_schema()
+            where,
+            memory_map=memory_map,
+            decryption_properties=decryption_properties,
+            arrow_extensions_enabled=arrow_extensions_enabled,
+        )
+        return file.schema_arrow
 
 
 __all__ = (

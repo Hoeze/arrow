@@ -2721,6 +2721,83 @@ garrow_fixed_closedness_range_data_type_get_closed(
   return garrow_range_closed_from_raw(arrow_data_type->closed());
 }
 
+G_DEFINE_TYPE(GArrowVariableClosednessRangeDataType,
+              garrow_variable_closedness_range_data_type,
+              GARROW_TYPE_EXTENSION_DATA_TYPE)
+
+static void
+garrow_variable_closedness_range_data_type_init(
+  GArrowVariableClosednessRangeDataType *object)
+{
+}
+
+static void
+garrow_variable_closedness_range_data_type_class_init(
+  GArrowVariableClosednessRangeDataTypeClass *klass)
+{
+}
+
+/**
+ * garrow_variable_closedness_range_data_type_new:
+ * @value_type: The orderable #GArrowDataType of the lower and upper bounds.
+ * @allow_unbounded: Whether each side may be unbounded (infinite); when %TRUE
+ *   the lower/upper fields are nullable, when %FALSE they are non-nullable and
+ *   the range is always finite. The lower_inc/upper_inc fields are always
+ *   non-nullable.
+ * @error: (nullable): Return location for a #GError or %NULL.
+ *
+ * Unlike #GArrowFixedClosednessRangeDataType, the inclusivity of each bound
+ * is stored per value in boolean lower_inc/upper_inc fields rather than as a
+ * single type-level parameter, so there is no closed argument.
+ *
+ * Returns: (nullable):
+ *   The newly created variable closedness range data type on success, %NULL
+ *   on error.
+ *
+ * Since: 26.0.0
+ */
+GArrowVariableClosednessRangeDataType *
+garrow_variable_closedness_range_data_type_new(GArrowDataType *value_type,
+                                               gboolean allow_unbounded,
+                                               GError **error)
+{
+  auto arrow_value_type = garrow_data_type_get_raw(value_type);
+  auto arrow_data_type_result =
+    arrow::extension::VariableClosednessRangeType::Make(arrow_value_type,
+                                                        allow_unbounded);
+  if (garrow::check(error,
+                    arrow_data_type_result,
+                    "[variable-closedness-range-data-type][new]")) {
+    auto arrow_data_type = *arrow_data_type_result;
+    return GARROW_VARIABLE_CLOSEDNESS_RANGE_DATA_TYPE(
+      g_object_new(GARROW_TYPE_VARIABLE_CLOSEDNESS_RANGE_DATA_TYPE,
+                   "data-type",
+                   &arrow_data_type,
+                   NULL));
+  } else {
+    return NULL;
+  }
+}
+
+/**
+ * garrow_variable_closedness_range_data_type_get_value_type:
+ * @data_type: A #GArrowVariableClosednessRangeDataType.
+ *
+ * Returns: (transfer full): The orderable #GArrowDataType of the lower
+ *   and upper bounds.
+ *
+ * Since: 26.0.0
+ */
+GArrowDataType *
+garrow_variable_closedness_range_data_type_get_value_type(
+  GArrowVariableClosednessRangeDataType *data_type)
+{
+  auto arrow_data_type =
+    std::static_pointer_cast<arrow::extension::VariableClosednessRangeType>(
+      garrow_data_type_get_raw(GARROW_DATA_TYPE(data_type)));
+  auto arrow_value_type = arrow_data_type->value_type();
+  return garrow_data_type_new_raw(&arrow_value_type);
+}
 G_END_DECLS
 
 GArrowDataType *
@@ -2878,6 +2955,8 @@ garrow_data_type_new_raw(std::shared_ptr<arrow::DataType> *arrow_data_type)
         type = GARROW_TYPE_UUID_DATA_TYPE;
       } else if (name == "arrow.fixed_closedness_range") {
         type = GARROW_TYPE_FIXED_CLOSEDNESS_RANGE_DATA_TYPE;
+      } else if (name == "arrow.variable_closedness_range") {
+        type = GARROW_TYPE_VARIABLE_CLOSEDNESS_RANGE_DATA_TYPE;
       } else {
         auto g_extension_data_type =
           std::dynamic_pointer_cast<garrow::GExtensionType>(*arrow_data_type);

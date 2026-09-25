@@ -945,4 +945,28 @@ GArrowRangeClosed
 garrow_fixed_closedness_range_data_type_get_closed(
   GArrowFixedClosednessRangeDataType *data_type);
 
+#define GARROW_TYPE_VARIABLE_CLOSEDNESS_RANGE_DATA_TYPE                                  \
+  (garrow_variable_closedness_range_data_type_get_type())
+GARROW_AVAILABLE_IN_26_0
+G_DECLARE_DERIVABLE_TYPE(GArrowVariableClosednessRangeDataType,
+                         garrow_variable_closedness_range_data_type,
+                         GARROW,
+                         VARIABLE_CLOSEDNESS_RANGE_DATA_TYPE,
+                         GArrowExtensionDataType)
+struct _GArrowVariableClosednessRangeDataTypeClass
+{
+  GArrowExtensionDataTypeClass parent_class;
+};
+
+GARROW_AVAILABLE_IN_26_0
+GArrowVariableClosednessRangeDataType *
+garrow_variable_closedness_range_data_type_new(GArrowDataType *value_type,
+                                               gboolean allow_unbounded,
+                                               GError **error);
+
+GARROW_AVAILABLE_IN_26_0
+GArrowDataType *
+garrow_variable_closedness_range_data_type_get_value_type(
+  GArrowVariableClosednessRangeDataType *data_type);
+
 G_END_DECLS
